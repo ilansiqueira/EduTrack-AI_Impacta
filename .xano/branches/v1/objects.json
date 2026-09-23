@@ -331,5 +331,14 @@
     "staged": false,
     "sha256": "65de1d3c3a5e8357602530b6e2b3a4335fdb06f06ff3b085ea20085eb80fa1ca",
     "original": "YWRkb24gdXNlciB7CiAgaW5wdXQgewogICAgaW50IHVzZXJfaWQ/IHsKICAgICAgdGFibGUgPSAidXNlciIKICAgIH0KICB9CgogIHN0YWNrIHsKICAgIGRiLnF1ZXJ5IHVzZXIgewogICAgICB3aGVyZSA9ICRkYi51c2VyLmlkID09ICRpbnB1dC51c2VyX2lkCiAgICAgIHJldHVybiA9IHt0eXBlOiAic2luZ2xlIn0KICAgIH0KICB9Cn0="
+  },
+  {
+    "id": 897884,
+    "path": "tables/subjects.xs",
+    "status": "unchanged",
+    "type": "table",
+    "staged": false,
+    "sha256": "2e9dd8a769dfd962b34087f7d7bb340282e2488026a8cafb6ad8048cefe663d6",
+    "original": "dGFibGUgc3ViamVjdHMgewogIGF1dGggPSBmYWxzZQoKICBzY2hlbWEgewogICAgaW50IGlkCiAgICB0aW1lc3RhbXAgY3JlYXRlZF9hdD89bm93IHsKICAgICAgdmlzaWJpbGl0eSA9ICJwcml2YXRlIgogICAgfQogIAogICAgdGV4dCBuYW1lIGZpbHRlcnM9dHJpbQogICAgdGV4dCB0ZWFjaGVyPyBmaWx0ZXJzPXRyaW0KICAgIGludCBob3Vycz8KICAgIGludCB1c2VyX2lkIHsKICAgICAgdGFibGUgPSAidXNlciIKICAgIH0KICB9CgogIGluZGV4ID0gWwogICAge3R5cGU6ICJwcmltYXJ5IiwgZmllbGQ6IFt7bmFtZTogImlkIn1dfQogICAge3R5cGU6ICJidHJlZSIsIGZpZWxkOiBbe25hbWU6ICJjcmVhdGVkX2F0Iiwgb3A6ICJkZXNjIn1dfQogICAge3R5cGU6ICJidHJlZSIsIGZpZWxkOiBbe25hbWU6ICJ1c2VyX2lkIiwgb3A6ICJhc2MifV19CiAgICB7dHlwZTogImJ0cmVlIiwgZmllbGQ6IFt7bmFtZTogIm5hbWUiLCBvcDogImFzYyJ9XX0KICBdCgogIHRhZ3MgPSBbInN1YmplY3RzIiwgImFjYWRlbWljcyJdCn0="
   }
 ]
