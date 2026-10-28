@@ -26,7 +26,18 @@ def _load_env():
 
 _load_env()
 
-XANO_API_BASE_URL = os.getenv("XANO_API_BASE_URL", "")
+def get_tasks_endpoint_url(subject_id):
+    """Resolve the academic_tasks endpoint URL from environment variables."""
+    _load_env()
+    base = os.getenv("XANO_TASKS_BASE_URL", "").strip().rstrip("/")
+    if not base:
+        base = os.getenv("XANO_API_BASE_URL", "").strip().rstrip("/")
+    if not base:
+        raise ValueError("XANO_TASKS_BASE_URL (or XANO_API_BASE_URL) environment variable is not configured.")
+    
+    if base.endswith("/academic_tasks"):
+        return f"{base}?subject_id={subject_id}"
+    return f"{base}/academic_tasks?subject_id={subject_id}"
 
 
 def get_auth_headers(token=None):
@@ -45,11 +56,7 @@ def fetch_academic_tasks(subject_id, auth_token=None):
     Fetch academic tasks for a given subject_id using the CRUD endpoint.
     Returns a list of tasks, or raises an error / returns empty list.
     """
-    if not XANO_API_BASE_URL:
-        # If API URL is not set, raise ValueError with descriptive message
-        raise ValueError("XANO_API_BASE_URL environment variable is not configured.")
-
-    endpoint = f"{XANO_API_BASE_URL}/academic_tasks?subject_id={subject_id}"
+    endpoint = get_tasks_endpoint_url(subject_id)
     req = urllib.request.Request(endpoint, headers=get_auth_headers(auth_token), method="GET")
 
     try:
