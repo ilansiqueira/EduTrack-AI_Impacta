@@ -46,6 +46,6 @@ query "subjects/{id}" verb=PATCH {
   }
 
   response = $updated_subject
-  guid = "c_6iFrVHfQbl3YV3LfT-9p_3O48"
+  guid = "c_6iFrVHfQbl3YV3LfT-9p_3O"
 }
 

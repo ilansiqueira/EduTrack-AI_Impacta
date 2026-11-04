@@ -10,7 +10,7 @@ import urllib.error
 from pathlib import Path
 
 def load_env():
-    """Carrega as variáveis do arquivo .env na raiz do projeto."""
+    """Carrega as variáveis do arquivo .env na raiz do projeto (fallback retrocompatível)."""
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
@@ -22,26 +22,34 @@ def load_env():
 
 load_env()
 
+def get_secret(key: str, default: str = "") -> str:
+    """Retorna configuração a partir de st.secrets do Streamlit ou fallback no os.getenv."""
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
+    load_env()
+    return os.getenv(key, default).strip()
+
 def get_subjects_base_url() -> str:
     """Retorna a URL base específica para o grupo de API de subjects."""
-    load_env()
-    url = os.getenv("XANO_SUBJECTS_BASE_URL", "").strip().rstrip("/")
+    url = get_secret("XANO_SUBJECTS_BASE_URL", "").rstrip("/")
     if not url:
-        url = os.getenv("XANO_API_BASE_URL", "").strip().rstrip("/")
+        url = get_secret("XANO_API_BASE_URL", "").rstrip("/")
     return url
 
 def get_tasks_base_url() -> str:
     """Retorna a URL base específica para o grupo de API de academic_tasks."""
-    load_env()
-    url = os.getenv("XANO_TASKS_BASE_URL", "").strip().rstrip("/")
+    url = get_secret("XANO_TASKS_BASE_URL", "").rstrip("/")
     if not url:
-        url = os.getenv("XANO_API_BASE_URL", "").strip().rstrip("/")
+        url = get_secret("XANO_API_BASE_URL", "").rstrip("/")
     return url
 
 def get_api_base_url() -> str:
     """Fallback genérico para URL de API Xano."""
-    load_env()
-    return os.getenv("XANO_API_BASE_URL", "").strip().rstrip("/")
+    return get_secret("XANO_API_BASE_URL", "").rstrip("/")
 
 def get_auth_headers(token=None):
     """Retorna os cabeçalhos HTTP com Content-Type, Accept e Bearer token se informado."""
@@ -56,7 +64,7 @@ def get_auth_headers(token=None):
 def _make_request(url: str, method: str = "GET", payload: dict = None, auth_token: str = None, timeout: int = 10):
     """Executa requisição HTTP e retorna tupla (sucesso: bool, dados_ou_erro: any)."""
     if not url or "api:example" in url:
-        return False, "URL da API Xano não configurada no arquivo .env."
+        return False, "URL da API Xano não configurada nos secrets do Streamlit (.streamlit/secrets.toml)."
 
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(url, data=data, headers=get_auth_headers(auth_token), method=method)
@@ -107,7 +115,7 @@ def fetch_subjects(auth_token=None):
     """
     url = _format_subjects_url()
     if not url:
-        return False, "URL da API de subjects não configurada no .env (XANO_SUBJECTS_BASE_URL)"
+        return False, "URL da API de subjects não configurada nos secrets do Streamlit (XANO_SUBJECTS_BASE_URL)"
     return _make_request(url, method="GET", auth_token=auth_token)
 
 def create_subject(name: str, teacher: str = None, hours: int = None, auth_token=None):
@@ -117,7 +125,7 @@ def create_subject(name: str, teacher: str = None, hours: int = None, auth_token
     """
     url = _format_subjects_url()
     if not url:
-        return False, "URL da API de subjects não configurada no .env (XANO_SUBJECTS_BASE_URL)"
+        return False, "URL da API de subjects não configurada nos secrets do Streamlit (XANO_SUBJECTS_BASE_URL)"
     
     payload = {
         "name": name.strip()
@@ -136,14 +144,14 @@ def update_subject(subject_id: int, fields: dict, auth_token=None):
     """Atualiza dados de uma disciplina existente do usuário autenticado."""
     url = _format_subjects_url(str(subject_id))
     if not url:
-        return False, "URL da API de subjects não configurada no .env (XANO_SUBJECTS_BASE_URL)"
+        return False, "URL da API de subjects não configurada nos secrets do Streamlit (XANO_SUBJECTS_BASE_URL)"
     return _make_request(url, method="PATCH", payload=fields, auth_token=auth_token)
 
 def delete_subject(subject_id: int, auth_token=None):
     """Remove uma disciplina do usuário autenticado."""
     url = _format_subjects_url(str(subject_id))
     if not url:
-        return False, "URL da API de subjects não configurada no .env (XANO_SUBJECTS_BASE_URL)"
+        return False, "URL da API de subjects não configurada nos secrets do Streamlit (XANO_SUBJECTS_BASE_URL)"
     return _make_request(url, method="DELETE", auth_token=auth_token)
 
 
@@ -170,7 +178,7 @@ def fetch_academic_tasks(subject_id=None, auth_token=None):
     """
     url = _format_tasks_url()
     if not url:
-        return False, "URL da API de academic_tasks não configurada no .env (XANO_TASKS_BASE_URL)"
+        return False, "URL da API de academic_tasks não configurada nos secrets do Streamlit (XANO_TASKS_BASE_URL)"
     
     if subject_id:
         url += f"?subject_id={subject_id}"
@@ -184,7 +192,7 @@ def create_academic_task(title: str, subject_id: int, description: str = None, d
     """
     url = _format_tasks_url()
     if not url:
-        return False, "URL da API de academic_tasks não configurada no .env (XANO_TASKS_BASE_URL)"
+        return False, "URL da API de academic_tasks não configurada nos secrets do Streamlit (XANO_TASKS_BASE_URL)"
     
     payload = {
         "title": title.strip(),
@@ -202,12 +210,12 @@ def update_academic_task(task_id: int, fields: dict, auth_token=None):
     """Atualiza campos de uma tarefa acadêmica (ex: status, title, due_date)."""
     url = _format_tasks_url(str(task_id))
     if not url:
-        return False, "URL da API de academic_tasks não configurada no .env (XANO_TASKS_BASE_URL)"
+        return False, "URL da API de academic_tasks não configurada nos secrets do Streamlit (XANO_TASKS_BASE_URL)"
     return _make_request(url, method="PATCH", payload=fields, auth_token=auth_token)
 
 def delete_academic_task(task_id: int, auth_token=None):
     """Exclui uma tarefa acadêmica do usuário autenticado."""
     url = _format_tasks_url(str(task_id))
     if not url:
-        return False, "URL da API de academic_tasks não configurada no .env (XANO_TASKS_BASE_URL)"
+        return False, "URL da API de academic_tasks não configurada nos secrets do Streamlit (XANO_TASKS_BASE_URL)"
     return _make_request(url, method="DELETE", auth_token=auth_token)

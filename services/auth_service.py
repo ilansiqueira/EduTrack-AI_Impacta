@@ -10,7 +10,7 @@ import urllib.error
 from pathlib import Path
 
 def load_env():
-    """Carrega as variáveis do arquivo .env na raiz do projeto."""
+    """Carrega as variáveis do arquivo .env na raiz do projeto (fallback retrocompatível)."""
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
@@ -18,15 +18,25 @@ def load_env():
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     key, val = line.split("=", 1)
-                    os.environ[key.strip()] = val.strip()
+                    os.environ[key.strip()] = val.strip().strip('"').strip("'")
 
 # Carregar variáveis ao importar o módulo
 load_env()
 
-def get_auth_base_url():
-    """Retorna a URL base de autenticação configurada no .env."""
+def get_secret(key: str, default: str = "") -> str:
+    """Retorna configuração a partir de st.secrets do Streamlit ou fallback no os.getenv."""
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
     load_env()
-    url = os.getenv("XANO_AUTH_BASE_URL", "").strip().rstrip("/")
+    return os.getenv(key, default).strip()
+
+def get_auth_base_url():
+    """Retorna a URL base de autenticação configurada em st.secrets ou fallback no .env."""
+    url = get_secret("XANO_AUTH_BASE_URL", "").rstrip("/")
     return url
 
 def _format_endpoint(path: str) -> str:
@@ -47,7 +57,7 @@ def signup(name: str, email: str, password: str):
     """
     url = _format_endpoint("auth/signup")
     if not url or "your-instance" in url or "api:example" in url:
-        return False, "URL da API Xano não configurada ou inválida no arquivo .env."
+        return False, "URL da API Xano não configurada ou inválida nos secrets do Streamlit (.streamlit/secrets.toml)."
 
     payload = {
         "name": name.strip(),
@@ -85,7 +95,7 @@ def login(email: str, password: str):
     """
     url = _format_endpoint("auth/login")
     if not url or "your-instance" in url or "api:example" in url:
-        return False, "URL da API Xano não configurada ou inválida no arquivo .env."
+        return False, "URL da API Xano não configurada ou inválida nos secrets do Streamlit (.streamlit/secrets.toml)."
 
     payload = {
         "email": email.strip().lower(),
@@ -122,7 +132,7 @@ def get_current_user(auth_token: str):
     """
     url = _format_endpoint("auth/me")
     if not url or "your-instance" in url or "api:example" in url:
-        return False, "URL da API Xano não configurada ou inválida no arquivo .env."
+        return False, "URL da API Xano não configurada ou inválida nos secrets do Streamlit (.streamlit/secrets.toml)."
 
     req = urllib.request.Request(
         url,

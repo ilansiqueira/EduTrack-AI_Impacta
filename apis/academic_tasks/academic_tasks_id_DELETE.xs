@@ -30,6 +30,6 @@ query "academic_tasks/{id}" verb=DELETE {
   response = {
     success: true
   }
-  guid = "esfva_rutE_QHboDNuIGi02K6UU"
+  guid = "esfva_rutE_QHboDNuIGi02K6"
 }
 

@@ -36,6 +36,6 @@ query subjects verb=POST {
   }
 
   response = $new_subject
-  guid = "jbSCoKHKKtlR6vZelKHCqupkQyY"
+  guid = "jbSCoKHKKtlR6vZelKHCqupkQ"
 }
 
