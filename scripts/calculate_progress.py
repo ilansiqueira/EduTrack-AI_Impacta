@@ -10,7 +10,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-# Load .env variables if .env exists
+# Load .env variables if .env exists (fallback)
 def _load_env():
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if env_path.exists():
@@ -26,14 +26,25 @@ def _load_env():
 
 _load_env()
 
-def get_tasks_endpoint_url(subject_id):
-    """Resolve the academic_tasks endpoint URL from environment variables."""
+def _get_secret(key: str, default: str = "") -> str:
+    """Resolve configuration from Streamlit secrets if available, falling back to os.getenv."""
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
     _load_env()
-    base = os.getenv("XANO_TASKS_BASE_URL", "").strip().rstrip("/")
+    val = os.getenv(key, default)
+    return str(val).strip() if val is not None else default
+
+def get_tasks_endpoint_url(subject_id):
+    """Resolve the academic_tasks endpoint URL from Streamlit secrets or environment variables."""
+    base = _get_secret("XANO_TASKS_BASE_URL", "").rstrip("/")
     if not base:
-        base = os.getenv("XANO_API_BASE_URL", "").strip().rstrip("/")
+        base = _get_secret("XANO_API_BASE_URL", "").rstrip("/")
     if not base:
-        raise ValueError("XANO_TASKS_BASE_URL (or XANO_API_BASE_URL) environment variable is not configured.")
+        raise ValueError("XANO_TASKS_BASE_URL (or XANO_API_BASE_URL) is not configured in Streamlit secrets or environment.")
     
     if base.endswith("/academic_tasks"):
         return f"{base}?subject_id={subject_id}"

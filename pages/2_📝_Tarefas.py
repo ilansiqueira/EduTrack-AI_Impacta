@@ -16,6 +16,7 @@ from services.xano_adapter import (
     delete_academic_task
 )
 from scripts.calculate_progress import compute_progress
+from scripts.generate_student_report import generate_pdf_bytes
 
 st.set_page_config(page_title="Tarefas - EduTrack AI", page_icon="📝", layout="wide")
 
@@ -90,14 +91,42 @@ with tab_lista:
 
         filtered_tasks.append(t)
 
-    # Métricas de progresso
+    # Métricas de progresso e Exportação de Relatório
     if tasks:
         metrics = compute_progress(tasks)
-        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1, col_m2, col_m3, col_dl = st.columns([1, 1, 1, 1.2])
         col_m1.metric("Total de Tarefas", metrics["total_tasks"])
         col_m2.metric("Tarefas Concluídas", metrics["completed_tasks"])
         col_m3.metric("Progresso Geral", f"{metrics['progress_percentage']}%")
+        
+        with col_dl:
+            st.write("")  # Alinhamento vertical com as métricas
+            student_info = st.session_state.get("user") or {}
+            pdf_data = generate_pdf_bytes(student=student_info, subjects=subjects, tasks=tasks)
+            st.download_button(
+                label="📄 Baixar Relatório (PDF)",
+                data=pdf_data,
+                file_name="relatorio_desempenho.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                help="Baixar relatório completo de desempenho acadêmico em PDF"
+            )
+
         st.progress(metrics["progress_percentage"] / 100.0)
+    else:
+        # Quando não houver tarefas cadastradas ainda
+        col_empty_info, col_empty_dl = st.columns([3, 1])
+        with col_empty_dl:
+            student_info = st.session_state.get("user") or {}
+            pdf_data = generate_pdf_bytes(student=student_info, subjects=subjects, tasks=[])
+            st.download_button(
+                label="📄 Baixar Relatório (PDF)",
+                data=pdf_data,
+                file_name="relatorio_desempenho.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                help="Baixar relatório completo de desempenho acadêmico em PDF"
+            )
 
     st.markdown("---")
 

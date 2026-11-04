@@ -56,6 +56,6 @@ query academic_tasks verb=POST {
   }
 
   response = $new_task
-  guid = "lRUKdkbttkKIRI_tWocfuHh7PIc"
+  guid = "lRUKdkbttkKIRI_tWocfuHh7P"
 }
 

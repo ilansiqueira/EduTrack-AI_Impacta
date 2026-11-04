@@ -58,8 +58,8 @@ else:
     # Aviso informativo caso a URL ainda seja o exemplo padrão
     if not base_url or "api:example" in base_url:
         st.warning(
-            "⚠️ **Atenção:** A URL dos endpoints Xano no arquivo `.env` está com valor de exemplo (`api:example`). "
-            "Para autenticação real, configure a sua URL da API Xano no arquivo `.env` na raiz do projeto."
+            "⚠️ **Atenção:** A URL dos endpoints Xano nos secrets do Streamlit está com valor de exemplo (`api:example`). "
+            "Para autenticação real, configure a sua URL da API Xano em `.streamlit/secrets.toml`."
         )
     
     # Abas para alternar entre Login e Cadastro

@@ -68,6 +68,6 @@ query "academic_tasks/{id}" verb=PATCH {
   }
 
   response = $updated_task
-  guid = "Oui-4kIP8hxbTI3VBv3uH2YX0pU"
+  guid = "Oui-4kIP8hxbTI3VBv3uH2YX0"
 }
 

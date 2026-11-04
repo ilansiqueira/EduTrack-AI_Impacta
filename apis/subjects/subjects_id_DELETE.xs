@@ -30,6 +30,6 @@ query "subjects/{id}" verb=DELETE {
   response = {
     success: true
   }
-  guid = "WMMFNIgZTBpx11_s2r6bwgx1O-w"
+  guid = "WMMFNIgZTBpx11_s2r6bwgx1O"
 }
 

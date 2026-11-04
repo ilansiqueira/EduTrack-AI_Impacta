@@ -30,6 +30,6 @@ query academic_tasks verb=GET {
   }
 
   response = $tasks
-  guid = "JiyPxy-axJzuV-rr_3EYmsfbtI4"
+  guid = "JiyPxy-axJzuV-rr_3EYmsfbt"
 }
 

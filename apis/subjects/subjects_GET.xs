@@ -16,6 +16,6 @@ query subjects verb=GET {
   }
 
   response = $user_subjects
-  guid = "QBwBWxzuq0KGDdaDxSQYyIZ4fOg"
+  guid = "QBwBWxzuq0KGDdaDxSQYyIZ4f"
 }
 
