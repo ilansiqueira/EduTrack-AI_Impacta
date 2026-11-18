@@ -3,8 +3,10 @@ import { Star } from 'lucide-react';
 import { Button } from './ui/Primitives';
 
 interface GradeInputProps {
-  /** Called when user submits a grade. `null` means "skip / no grade". */
-  onSubmit: (grade: number | null, weight: number) => void;
+  /** Called when user submits a valid grade, or `null` on legacy skip fallback. */
+  onSubmit: (grade: number | null, weight: number) => void | Promise<void>;
+  /** Called when user explicitly skips entering a grade without saving. */
+  onSkip?: () => void;
   initialGrade?: number | null;
   initialWeight?: number | null;
   compact?: boolean;
@@ -12,6 +14,7 @@ interface GradeInputProps {
 
 export const GradeInput: React.FC<GradeInputProps> = ({
   onSubmit,
+  onSkip,
   initialGrade,
   initialWeight,
   compact = false,
@@ -22,15 +25,50 @@ export const GradeInput: React.FC<GradeInputProps> = ({
   const [weight, setWeight] = useState(
     initialWeight !== null && initialWeight !== undefined ? String(initialWeight) : '1'
   );
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = () => {
-    if (!grade.trim()) {
-      onSubmit(null, Number(weight) || 1);
+  const handleSubmit = async () => {
+    setError(null);
+    const trimmedGrade = grade.trim();
+    if (!trimmedGrade) {
+      if (!compact) {
+        setError('Informe uma nota entre 0 e 10 ou clique em Pular.');
+        return;
+      }
+      await onSubmit(null, Number(weight) || 1);
       return;
     }
-    const parsed = Number(grade);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 10) return;
-    onSubmit(parsed, Number(weight) || 1);
+
+    const parsedGrade = Number(trimmedGrade);
+    if (Number.isNaN(parsedGrade) || parsedGrade < 0 || parsedGrade > 10) {
+      setError('A nota deve estar entre 0 e 10.');
+      return;
+    }
+
+    const parsedWeight = weight.trim() ? Number(weight) : 1;
+    if (Number.isNaN(parsedWeight) || parsedWeight <= 0) {
+      setError('O peso deve ser maior que zero.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSubmit(parsedGrade, parsedWeight);
+    } catch {
+      // Toast is already handled by AcademicContext
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSkip = () => {
+    setError(null);
+    if (onSkip) {
+      onSkip();
+    } else {
+      void onSubmit(null, 1);
+    }
   };
 
   if (compact) {
@@ -102,14 +140,20 @@ export const GradeInput: React.FC<GradeInputProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={handleSubmit}>
+          <Button type="button" size="sm" loading={saving} onClick={() => void handleSubmit()}>
             Salvar Nota
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onSubmit(null, 1)}>
+          <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={handleSkip}>
             Pular
           </Button>
         </div>
       </div>
+
+      {error && (
+        <p className="mt-2.5 text-xs font-medium text-rose-600 dark:text-rose-400" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 };

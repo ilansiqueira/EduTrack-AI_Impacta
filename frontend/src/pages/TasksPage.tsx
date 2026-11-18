@@ -169,6 +169,22 @@ export const TasksPage: React.FC = () => {
       return;
     }
 
+    let parsedGrade: number | null = null;
+    if (taskGrade.trim()) {
+      const candidateGrade = Number(taskGrade);
+      if (Number.isNaN(candidateGrade) || candidateGrade < 0 || candidateGrade > 10) {
+        setFormError('Informe uma nota válida entre 0 e 10.');
+        return;
+      }
+      parsedGrade = candidateGrade;
+    }
+
+    const parsedWeight = taskWeight.trim() ? Number(taskWeight) : 1;
+    if (Number.isNaN(parsedWeight) || parsedWeight <= 0 || parsedWeight > 10) {
+      setFormError('O peso da atividade deve ser maior que zero (até 10).');
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingTask) {
@@ -178,8 +194,8 @@ export const TasksPage: React.FC = () => {
           due_date: dueDate || null,
           status,
           description: description.trim() || null,
-          grade: taskGrade.trim() ? Number(taskGrade) : null,
-          weight: taskWeight.trim() ? Number(taskWeight) : null,
+          grade: parsedGrade,
+          weight: parsedWeight,
         });
       } else {
         await addTask({
@@ -188,8 +204,8 @@ export const TasksPage: React.FC = () => {
           due_date: dueDate || null,
           status,
           description: description.trim() || null,
-          grade: taskGrade.trim() ? Number(taskGrade) : null,
-          weight: taskWeight.trim() ? Number(taskWeight) : null,
+          grade: parsedGrade,
+          weight: parsedWeight,
         });
       }
       setModalOpen(false);
@@ -211,6 +227,15 @@ export const TasksPage: React.FC = () => {
     }
   };
 
+  const handleCompleteTask = async (task: AcademicTask) => {
+    try {
+      await setTaskStatus(task.id, 'completed');
+      setGradingTaskId(task.id);
+    } catch {
+      // Error toast and rollback are already handled by AcademicContext
+    }
+  };
+
   const handleDropOnColumn = async (targetStatus: CanonicalTaskStatus) => {
     setDropTargetCol(null);
     if (draggedTaskId === null) return;
@@ -218,12 +243,21 @@ export const TasksPage: React.FC = () => {
     setDraggedTaskId(null);
     if (!targetTask) return;
     if (normalizeTaskStatus(targetTask.status) === targetStatus) return;
-    await setTaskStatus(targetTask.id, targetStatus);
-    // If completing, prompt for grade
     if (targetStatus === 'completed') {
-      setGradingTaskId(targetTask.id);
+      await handleCompleteTask(targetTask);
+    } else {
+      try {
+        await setTaskStatus(targetTask.id, targetStatus);
+      } catch {
+        // Error toast and rollback are already handled by AcademicContext
+      }
     }
   };
+
+  const gradingTask = useMemo(
+    () => tasks.find((t) => t.id === gradingTaskId) ?? null,
+    [tasks, gradingTaskId]
+  );
 
   return (
     <div className="space-y-6">
@@ -575,10 +609,7 @@ export const TasksPage: React.FC = () => {
                               {col.id !== 'completed' && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    void setTaskStatus(task.id, 'completed');
-                                    setGradingTaskId(task.id);
-                                  }}
+                                  onClick={() => void handleCompleteTask(task)}
                                   className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300"
                                   title="Concluir tarefa"
                                 >
@@ -615,7 +646,9 @@ export const TasksPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() =>
-                      void setTaskStatus(task.id, isCompleted ? 'pending' : 'completed')
+                      isCompleted
+                        ? void setTaskStatus(task.id, 'pending')
+                        : void handleCompleteTask(task)
                     }
                     className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition ${
                       isCompleted
@@ -671,9 +704,14 @@ export const TasksPage: React.FC = () => {
                 <div className="flex items-center gap-2 self-end sm:self-center">
                   <select
                     value={canonical}
-                    onChange={(e) =>
-                      void setTaskStatus(task.id, e.target.value as CanonicalTaskStatus)
-                    }
+                    onChange={(e) => {
+                      const next = e.target.value as CanonicalTaskStatus;
+                      if (next === 'completed') {
+                        void handleCompleteTask(task);
+                      } else {
+                        void setTaskStatus(task.id, next);
+                      }
+                    }}
                     aria-label="Alterar status da tarefa"
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 focus:border-brand-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
                   >
@@ -863,14 +901,20 @@ export const TasksPage: React.FC = () => {
         title="Registrar Nota"
         description="A tarefa foi concluída! Deseja registrar a nota recebida?"
       >
-        <GradeInput
-          onSubmit={async (g, w) => {
-            if (gradingTaskId !== null) {
-              await gradeTask(gradingTaskId, g, w);
-            }
-            setGradingTaskId(null);
-          }}
-        />
+        {gradingTaskId !== null && (
+          <GradeInput
+            key={gradingTaskId}
+            initialGrade={gradingTask?.grade}
+            initialWeight={gradingTask?.weight}
+            onSkip={() => setGradingTaskId(null)}
+            onSubmit={async (g, w) => {
+              if (gradingTaskId !== null && g !== null) {
+                await gradeTask(gradingTaskId, g, w);
+              }
+              setGradingTaskId(null);
+            }}
+          />
+        )}
       </Modal>
     </div>
   );

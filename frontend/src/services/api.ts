@@ -9,40 +9,40 @@ export interface EnvConfig {
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number = 0) {
+  rawMessage: string;
+  param?: string;
+
+  constructor(message: string, status: number = 0, rawMessage?: string, param?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.rawMessage = rawMessage ?? message;
+    this.param = param;
   }
 }
 
 /**
- * Map of Xano validation messages → user-friendly Portuguese translations.
+ * Translate a raw Xano error message into a friendlier Portuguese string,
+ * preserving parameter context when available.
  */
-const XANO_ERROR_TRANSLATIONS: Record<string, string> = {
-  'Value is less than the minimum value of 1':
-    'Valor inválido: o campo requer um número maior que zero.',
-};
-
-/**
- * Translate a raw Xano error message into a friendlier Portuguese string.
- * Returns the original message if no translation matches.
- */
-export function translateXanoError(message: string): string {
-  for (const [pattern, translation] of Object.entries(XANO_ERROR_TRANSLATIONS)) {
-    if (message.includes(pattern)) return translation;
+export function translateXanoError(message: string, param?: string): string {
+  if (message.includes('Value is less than the minimum value of 1')) {
+    if (param === 'subject_id') {
+      return 'Selecione uma disciplina válida para a tarefa.';
+    }
+    return 'Valor inválido: o campo requer um número maior que zero.';
   }
   return message;
 }
 
 /**
  * Returns `true` when the error is a non-critical Xano validation failure
- * that can be silently swallowed (e.g. listing tasks when no subjects exist).
+ * that can be silently degraded (e.g. listing tasks without valid subject filter).
  */
 export function isNonCriticalValidationError(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;
-  const msg = error.message.toLowerCase();
-  return msg.includes('minimum value') || msg.includes('less than the minimum');
+  const combined = `${error.rawMessage} ${error.message}`.toLowerCase();
+  return combined.includes('minimum value') || combined.includes('less than the minimum');
 }
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -184,14 +184,20 @@ export async function apiRequest<T>(url: string, options: RequestOptions = {}): 
     if (response.status === 401 && token && notifyOnUnauthorized && unauthorizedHandler) {
       unauthorizedHandler();
     }
+    const parsedObj = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
     const rawMessage =
-      parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string'
-        ? parsed.message
+      parsedObj && typeof parsedObj.message === 'string'
+        ? parsedObj.message
         : typeof parsed === 'string' && parsed
           ? parsed
           : `Erro HTTP ${response.status}`;
-    const message = translateXanoError(rawMessage);
-    throw new ApiError(message, response.status);
+    const payloadObj =
+      parsedObj && parsedObj.payload && typeof parsedObj.payload === 'object'
+        ? (parsedObj.payload as Record<string, unknown>)
+        : null;
+    const param = payloadObj && typeof payloadObj.param === 'string' ? payloadObj.param : undefined;
+    const message = translateXanoError(rawMessage, param);
+    throw new ApiError(message, response.status, rawMessage, param);
   }
 
   return parsed as T;
@@ -307,11 +313,57 @@ export interface AcademicTaskInput {
 
 export async function fetchAcademicTasksApi(
   token: string,
-  subjectId?: number | null
+  subjectId?: number | null,
+  override?: EnvConfig
 ): Promise<AcademicTask[]> {
-  const url = resolveTasksUrl('', subjectId);
+  const url = resolveTasksUrl('', subjectId, override);
   const data = await apiRequest<AcademicTask[]>(url, { method: 'GET', token });
   return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Queries tasks scoped by each enrolled subject_id >= 1 to satisfy Xano's
+ * non-nullable `int subject_id? filters=min:1` input validation.
+ */
+export async function fetchAllAcademicTasksForSubjectsApi(
+  token: string,
+  subjectIds: number[],
+  override?: EnvConfig
+): Promise<AcademicTask[]> {
+  const validIds = Array.from(
+    new Set(
+      (Array.isArray(subjectIds) ? subjectIds : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id >= 1)
+    )
+  );
+
+  if (validIds.length === 0) {
+    return [];
+  }
+
+  const perSubjectLists = await Promise.all(
+    validIds.map((subjectId) => fetchAcademicTasksApi(token, subjectId, override))
+  );
+
+  const uniqueTasks = new Map<number, AcademicTask>();
+  for (const list of perSubjectLists) {
+    for (const task of list) {
+      if (task && typeof task.id === 'number') {
+        uniqueTasks.set(task.id, task);
+      }
+    }
+  }
+
+  return Array.from(uniqueTasks.values()).sort((a, b) => {
+    const aDue = a.due_date ? String(a.due_date).slice(0, 10) : '';
+    const bDue = b.due_date ? String(b.due_date).slice(0, 10) : '';
+    if (!aDue && !bDue) return a.id - b.id;
+    if (!aDue) return 1;
+    if (!bDue) return -1;
+    const cmp = aDue.localeCompare(bDue);
+    return cmp !== 0 ? cmp : a.id - b.id;
+  });
 }
 
 export async function createAcademicTaskApi(
@@ -330,10 +382,15 @@ export async function createAcademicTaskApi(
   if (input.due_date) {
     payload.due_date = input.due_date;
   }
-  if (input.grade !== undefined && input.grade !== null) {
+  if (input.grade !== undefined && input.grade !== null && Number.isFinite(Number(input.grade))) {
     payload.grade = Number(input.grade);
   }
-  if (input.weight !== undefined && input.weight !== null) {
+  if (
+    input.weight !== undefined &&
+    input.weight !== null &&
+    Number.isFinite(Number(input.weight)) &&
+    Number(input.weight) > 0
+  ) {
     payload.weight = Number(input.weight);
   }
   return apiRequest<AcademicTask>(url, { method: 'POST', body: payload, token });
@@ -342,19 +399,37 @@ export async function createAcademicTaskApi(
 export async function updateAcademicTaskApi(
   taskId: number,
   fields: Partial<AcademicTaskInput>,
-  token: string
+  token: string,
+  override?: EnvConfig
 ): Promise<AcademicTask> {
-  const url = resolveTasksUrl(String(taskId));
-  const payload: Record<string, unknown> = {};
+  const subjectId = Number(fields.subject_id);
+  if (!Number.isInteger(subjectId) || subjectId < 1) {
+    throw new ApiError('Selecione uma disciplina válida para atualizar a tarefa.', 400);
+  }
+
+  const url = resolveTasksUrl(String(taskId), undefined, override);
+  const payload: Record<string, unknown> = {
+    subject_id: subjectId,
+  };
   if (fields.title !== undefined) payload.title = fields.title.trim();
-  if (fields.subject_id !== undefined) payload.subject_id = Number(fields.subject_id);
   if (fields.description !== undefined) {
     payload.description = fields.description ? fields.description.trim() : '';
   }
-  if (fields.due_date !== undefined) payload.due_date = fields.due_date || null;
+  if (typeof fields.due_date === 'string' && fields.due_date.trim()) {
+    payload.due_date = fields.due_date.trim();
+  }
   if (fields.status !== undefined) payload.status = fields.status;
-  if (fields.grade !== undefined) payload.grade = fields.grade !== null ? Number(fields.grade) : null;
-  if (fields.weight !== undefined) payload.weight = fields.weight !== null ? Number(fields.weight) : null;
+  if (fields.grade !== undefined && fields.grade !== null && Number.isFinite(Number(fields.grade))) {
+    payload.grade = Number(fields.grade);
+  }
+  if (
+    fields.weight !== undefined &&
+    fields.weight !== null &&
+    Number.isFinite(Number(fields.weight)) &&
+    Number(fields.weight) > 0
+  ) {
+    payload.weight = Number(fields.weight);
+  }
   return apiRequest<AcademicTask>(url, { method: 'PATCH', body: payload, token });
 }
 
