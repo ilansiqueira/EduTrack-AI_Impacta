@@ -11,11 +11,14 @@ import {
   ArrowRight,
   Calendar,
   RefreshCw,
+  Star,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAcademic } from '../context/AcademicContext';
 import {
   computeProgressMetrics,
+  computeGradeMetrics,
+  getGradeBadgeTone,
   formatDateBR,
   isTaskOverdue,
   normalizeTaskStatus,
@@ -37,6 +40,7 @@ export const DashboardPage: React.FC = () => {
 
   const firstName = (user?.name || 'Estudante').split(' ')[0];
   const totalWorkloadHours = subjects.reduce((acc, s) => acc + (Number(s.hours) || 0), 0);
+  const overallGrades = computeGradeMetrics(tasks);
 
   // Upcoming & overdue incomplete tasks sorted by due_date ascending (nulls last)
   const upcomingTasks = [...tasks]
@@ -92,7 +96,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {error && (
+      {error && subjects.length > 0 && (
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
           <div className="flex items-center gap-3">
             <AlertCircle className="h-5 w-5 shrink-0" />
@@ -104,8 +108,8 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* 4 KPI Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* 5 KPI Stat Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -192,6 +196,41 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
         </Card>
+
+        {/* Média Geral KPI */}
+        <Card className="flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Média Geral
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
+              <Star className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">
+              {overallGrades.gradedTasks > 0
+                ? overallGrades.weightedAverage.toFixed(1)
+                : '—'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {overallGrades.gradedTasks > 0
+                ? `${overallGrades.gradedTasks} tarefa(s) avaliada(s)`
+                : 'Nenhuma nota registrada ainda'}
+            </p>
+            {overallGrades.gradedTasks > 0 && (
+              <div className="mt-2.5">
+                <Badge tone={getGradeBadgeTone(overallGrades.weightedAverage)}>
+                  {overallGrades.weightedAverage >= 7
+                    ? 'Aprovado'
+                    : overallGrades.weightedAverage >= 5
+                      ? 'Recuperação'
+                      : 'Reprovado'}
+                </Badge>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
 
       {/* Main Content Split: Per-Subject Progress + Upcoming Deadlines */}
@@ -232,6 +271,7 @@ export const DashboardPage: React.FC = () => {
               {subjects.map((subj) => {
                 const subjTasks = tasks.filter((t) => t.subject_id === subj.id);
                 const subjMetrics = computeProgressMetrics(subjTasks);
+                const subjGrades = computeGradeMetrics(subjTasks);
                 return (
                   <div
                     key={subj.id}
@@ -255,6 +295,12 @@ export const DashboardPage: React.FC = () => {
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                           {subjMetrics.completedTasks}/{subjMetrics.totalTasks} tarefas
                         </span>
+                        {subjGrades.gradedTasks > 0 && (
+                          <Badge tone={getGradeBadgeTone(subjGrades.weightedAverage)}>
+                            <Star className="h-3 w-3" />
+                            {subjGrades.weightedAverage.toFixed(1)}
+                          </Badge>
+                        )}
                         <Badge
                           tone={
                             subjMetrics.progressPercentage === 100 && subjMetrics.totalTasks > 0
@@ -367,6 +413,41 @@ export const DashboardPage: React.FC = () => {
               })}
             </div>
           )}
+        </Card>
+
+        {/* Média Geral KPI */}
+        <Card className="flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Média Geral
+            </span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
+              <Star className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">
+              {overallGrades.gradedTasks > 0
+                ? overallGrades.weightedAverage.toFixed(1)
+                : '—'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {overallGrades.gradedTasks > 0
+                ? `${overallGrades.gradedTasks} tarefa(s) avaliada(s)`
+                : 'Nenhuma nota registrada ainda'}
+            </p>
+            {overallGrades.gradedTasks > 0 && (
+              <div className="mt-2.5">
+                <Badge tone={getGradeBadgeTone(overallGrades.weightedAverage)}>
+                  {overallGrades.weightedAverage >= 7
+                    ? 'Aprovado'
+                    : overallGrades.weightedAverage >= 5
+                      ? 'Recuperação'
+                      : 'Reprovado'}
+                </Badge>
+              </div>
+            )}
+          </div>
         </Card>
       </div>
     </div>

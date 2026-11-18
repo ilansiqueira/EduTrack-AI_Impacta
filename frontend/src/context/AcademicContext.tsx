@@ -7,6 +7,7 @@ import {
   deleteSubjectApi,
   fetchAcademicTasksApi,
   fetchSubjectsApi,
+  isNonCriticalValidationError,
   updateAcademicTaskApi,
   updateSubjectApi,
   type AcademicTaskInput,
@@ -30,6 +31,7 @@ interface AcademicContextValue {
   addTask: (input: AcademicTaskInput) => Promise<AcademicTask>;
   editTask: (id: number, fields: Partial<AcademicTaskInput>) => Promise<AcademicTask>;
   setTaskStatus: (id: number, nextStatus: CanonicalTaskStatus) => Promise<void>;
+  gradeTask: (id: number, grade: number | null, weight?: number) => Promise<void>;
   removeTask: (id: number) => Promise<void>;
 }
 
@@ -54,12 +56,27 @@ export const AcademicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (!silent) setLoading(true);
       setError(null);
       try {
-        const [loadedSubjects, loadedTasks] = await Promise.all([
-          fetchSubjectsApi(token),
-          fetchAcademicTasksApi(token),
-        ]);
+        // 1) Fetch subjects first — they're needed to validate tasks
+        const loadedSubjects = await fetchSubjectsApi(token);
         setSubjects(loadedSubjects);
-        setTasks(loadedTasks);
+
+        // 2) Only fetch tasks if subjects exist; otherwise gracefully set empty
+        if (loadedSubjects.length > 0) {
+          try {
+            const loadedTasks = await fetchAcademicTasksApi(token);
+            setTasks(loadedTasks);
+          } catch (taskErr) {
+            // Xano validation errors (e.g. "minimum value of 1") are non-critical
+            // when the user simply has no valid subjects — degrade gracefully
+            if (isNonCriticalValidationError(taskErr)) {
+              setTasks([]);
+            } else {
+              throw taskErr;
+            }
+          }
+        } else {
+          setTasks([]);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Erro ao carregar dados acadêmicos.';
         setError(msg);
@@ -159,6 +176,23 @@ export const AcademicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [token, tasks, showToast]
   );
 
+  const gradeTask = useCallback(
+    async (id: number, grade: number | null, weight: number = 1) => {
+      if (!token) throw new Error('Sessão não autenticada.');
+      try {
+        const updated = await updateAcademicTaskApi(id, { grade, weight }, token);
+        setTasks((prev) => prev.map((item) => (item.id === id ? { ...item, ...updated } : item)));
+        if (grade !== null) {
+          showToast(`Nota ${grade} registrada!`, 'success');
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Falha ao salvar nota.';
+        showToast(msg, 'error');
+      }
+    },
+    [token, showToast]
+  );
+
   const removeTask = useCallback(
     async (id: number) => {
       if (!token) throw new Error('Sessão não autenticada.');
@@ -194,6 +228,7 @@ export const AcademicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addTask,
         editTask,
         setTaskStatus,
+        gradeTask,
         removeTask,
       }}
     >

@@ -6,6 +6,7 @@ import {
   BookOpen,
   CheckSquare,
   User as UserIcon,
+  Sparkles,
   Sun,
   Moon,
   LogOut,
@@ -51,6 +52,11 @@ export const AppShell: React.FC = () => {
       label: 'Tarefas',
       icon: CheckSquare,
       badge: openTasksCount > 0 ? String(openTasksCount) : undefined,
+    },
+    {
+      to: '/flashcards',
+      label: 'Flashcards',
+      icon: Sparkles,
     },
     {
       to: '/perfil',

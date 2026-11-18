@@ -1,4 +1,4 @@
-import type { AcademicTask, CanonicalTaskStatus, ProgressMetrics } from '../types/models';
+import type { AcademicTask, CanonicalTaskStatus, GradeMetrics, ProgressMetrics } from '../types/models';
 
 export function normalizeTaskStatus(raw?: string | null): CanonicalTaskStatus {
   const clean = String(raw ?? '')
@@ -88,4 +88,43 @@ export function computeProgressMetrics(
     overdueTasks,
     progressPercentage,
   };
+}
+
+
+// ── Grade helpers ───────────────────────────────────────────
+
+export function computeGradeMetrics(tasks: AcademicTask[]): GradeMetrics {
+  const graded = (Array.isArray(tasks) ? tasks : []).filter(
+    (t) =>
+      normalizeTaskStatus(t.status) === 'completed' &&
+      t.grade !== null &&
+      t.grade !== undefined &&
+      !Number.isNaN(Number(t.grade))
+  );
+
+  if (graded.length === 0) {
+    return { gradedTasks: 0, weightedAverage: 0, totalWeight: 0 };
+  }
+
+  let sumWG = 0;
+  let sumW = 0;
+  for (const t of graded) {
+    const w = t.weight != null && !Number.isNaN(Number(t.weight)) ? Number(t.weight) : 1;
+    sumWG += Number(t.grade!) * w;
+    sumW += w;
+  }
+
+  return {
+    gradedTasks: graded.length,
+    weightedAverage: sumW > 0 ? Math.round((sumWG / sumW) * 100) / 100 : 0,
+    totalWeight: sumW,
+  };
+}
+
+export type GradeBadgeTone = 'emerald' | 'amber' | 'rose';
+
+export function getGradeBadgeTone(avg: number): GradeBadgeTone {
+  if (avg >= 7) return 'emerald';
+  if (avg >= 5) return 'amber';
+  return 'rose';
 }

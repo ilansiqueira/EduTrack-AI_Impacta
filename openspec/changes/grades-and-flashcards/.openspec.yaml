@@ -1,0 +1,7 @@
+id: grades-and-flashcards
+title: "Feature: Notas por Tarefa + Quiz de Flashcards com IA"
+status: applied
+created: 2026-11-18
+specs:
+  - task-grades
+  - ai-flashcards

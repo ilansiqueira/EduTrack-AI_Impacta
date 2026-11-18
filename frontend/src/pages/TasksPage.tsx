@@ -14,6 +14,7 @@ import {
   Circle,
   FileDown,
   BookOpen,
+  Star,
 } from 'lucide-react';
 import type { AcademicTask, CanonicalTaskStatus } from '../types/models';
 import { useAuth } from '../context/AuthContext';
@@ -27,6 +28,7 @@ import {
 } from '../utils/progress';
 import { downloadStudentReportPdf } from '../utils/pdfReport';
 import { Badge, Button, Card, EmptyState, Input, Modal } from '../components/ui/Primitives';
+import { GradeInput } from '../components/GradeInput';
 
 type ViewMode = 'kanban' | 'list';
 type StatusFilter = 'all' | CanonicalTaskStatus;
@@ -50,6 +52,7 @@ export const TasksPage: React.FC = () => {
     addTask,
     editTask,
     setTaskStatus,
+    gradeTask,
     removeTask,
   } = useAcademic();
 
@@ -69,6 +72,7 @@ export const TasksPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<AcademicTask | null>(null);
   const [deletingTask, setDeletingTask] = useState<AcademicTask | null>(null);
+  const [gradingTaskId, setGradingTaskId] = useState<number | null>(null);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -76,6 +80,8 @@ export const TasksPage: React.FC = () => {
   const [dueDate, setDueDate] = useState<string>(getLocalTodayIso());
   const [status, setStatus] = useState<CanonicalTaskStatus>('pending');
   const [description, setDescription] = useState('');
+  const [taskGrade, setTaskGrade] = useState('');
+  const [taskWeight, setTaskWeight] = useState('1');
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -131,6 +137,8 @@ export const TasksPage: React.FC = () => {
     setDueDate(getLocalTodayIso());
     setStatus(presetStatus);
     setDescription('');
+    setTaskGrade('');
+    setTaskWeight('1');
     setFormError(null);
     setModalOpen(true);
   };
@@ -142,6 +150,8 @@ export const TasksPage: React.FC = () => {
     setDueDate(task.due_date ? String(task.due_date).slice(0, 10) : '');
     setStatus(normalizeTaskStatus(task.status));
     setDescription(task.description || '');
+    setTaskGrade(task.grade !== null && task.grade !== undefined ? String(task.grade) : '');
+    setTaskWeight(task.weight !== null && task.weight !== undefined ? String(task.weight) : '1');
     setFormError(null);
     setModalOpen(true);
   };
@@ -168,6 +178,8 @@ export const TasksPage: React.FC = () => {
           due_date: dueDate || null,
           status,
           description: description.trim() || null,
+          grade: taskGrade.trim() ? Number(taskGrade) : null,
+          weight: taskWeight.trim() ? Number(taskWeight) : null,
         });
       } else {
         await addTask({
@@ -176,6 +188,8 @@ export const TasksPage: React.FC = () => {
           due_date: dueDate || null,
           status,
           description: description.trim() || null,
+          grade: taskGrade.trim() ? Number(taskGrade) : null,
+          weight: taskWeight.trim() ? Number(taskWeight) : null,
         });
       }
       setModalOpen(false);
@@ -205,6 +219,10 @@ export const TasksPage: React.FC = () => {
     if (!targetTask) return;
     if (normalizeTaskStatus(targetTask.status) === targetStatus) return;
     await setTaskStatus(targetTask.id, targetStatus);
+    // If completing, prompt for grade
+    if (targetStatus === 'completed') {
+      setGradingTaskId(targetTask.id);
+    }
   };
 
   return (
@@ -505,6 +523,20 @@ export const TasksPage: React.FC = () => {
                             </p>
                           )}
 
+                          {col.id === 'completed' && task.grade != null && (
+                            <div className="mt-2 flex items-center gap-1.5">
+                              <Star className="h-3 w-3 text-amber-500" />
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                {task.grade}/10
+                              </span>
+                              {task.weight != null && task.weight !== 1 && (
+                                <span className="text-[10px] text-slate-400">
+                                  (peso {task.weight})
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                             <span
                               className={`inline-flex items-center gap-1 text-xs font-medium ${
@@ -543,7 +575,10 @@ export const TasksPage: React.FC = () => {
                               {col.id !== 'completed' && (
                                 <button
                                   type="button"
-                                  onClick={() => void setTaskStatus(task.id, 'completed')}
+                                  onClick={() => {
+                                    void setTaskStatus(task.id, 'completed');
+                                    setGradingTaskId(task.id);
+                                  }}
                                   className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300"
                                   title="Concluir tarefa"
                                 >
@@ -762,6 +797,32 @@ export const TasksPage: React.FC = () => {
             />
           </div>
 
+          {/* Grade & Weight (optional) */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Nota (0–10)"
+              type="number"
+              min={0}
+              max={10}
+              step={0.1}
+              placeholder="Ex: 8.5"
+              value={taskGrade}
+              onChange={(e) => setTaskGrade(e.target.value)}
+              hint="Opcional — preencha ao receber a nota"
+            />
+            <Input
+              label="Peso da Atividade"
+              type="number"
+              min={0.1}
+              max={10}
+              step={0.1}
+              placeholder="1.0"
+              value={taskWeight}
+              onChange={(e) => setTaskWeight(e.target.value)}
+              hint="Default 1.0 para média ponderada"
+            />
+          </div>
+
           <div className="flex justify-end gap-2.5 pt-2">
             <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
               Cancelar
@@ -793,6 +854,23 @@ export const TasksPage: React.FC = () => {
             Excluir Tarefa
           </Button>
         </div>
+      </Modal>
+
+      {/* Grade Prompt Modal — shown after completing a task */}
+      <Modal
+        open={gradingTaskId !== null}
+        onClose={() => setGradingTaskId(null)}
+        title="Registrar Nota"
+        description="A tarefa foi concluída! Deseja registrar a nota recebida?"
+      >
+        <GradeInput
+          onSubmit={async (g, w) => {
+            if (gradingTaskId !== null) {
+              await gradeTask(gradingTaskId, g, w);
+            }
+            setGradingTaskId(null);
+          }}
+        />
       </Modal>
     </div>
   );

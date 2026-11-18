@@ -10,10 +10,11 @@ import {
   Trash2,
   ArrowUpRight,
   AlertTriangle,
+  Star,
 } from 'lucide-react';
 import type { Subject } from '../types/models';
 import { useAcademic } from '../context/AcademicContext';
-import { computeProgressMetrics } from '../utils/progress';
+import { computeProgressMetrics, computeGradeMetrics, getGradeBadgeTone } from '../utils/progress';
 import { Badge, Button, Card, EmptyState, Input, Modal } from '../components/ui/Primitives';
 
 export const SubjectsPage: React.FC = () => {
@@ -175,6 +176,7 @@ export const SubjectsPage: React.FC = () => {
           {filteredSubjects.map((subj) => {
             const subjTasks = tasks.filter((t) => t.subject_id === subj.id);
             const subjMetrics = computeProgressMetrics(subjTasks);
+            const subjGrades = computeGradeMetrics(subjTasks);
 
             return (
               <Card
@@ -243,6 +245,18 @@ export const SubjectsPage: React.FC = () => {
                       style={{ width: `${Math.min(100, subjMetrics.progressPercentage)}%` }}
                     />
                   </div>
+
+                  {subjGrades.gradedTasks > 0 && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Star className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        Média: {subjGrades.weightedAverage.toFixed(1)}
+                      </span>
+                      <Badge tone={getGradeBadgeTone(subjGrades.weightedAverage)}>
+                        {subjGrades.gradedTasks} avaliada(s)
+                      </Badge>
+                    </div>
+                  )}
 
                   <div className="mt-4 flex justify-end">
                     <Link

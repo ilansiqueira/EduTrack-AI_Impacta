@@ -16,6 +16,35 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Map of Xano validation messages → user-friendly Portuguese translations.
+ */
+const XANO_ERROR_TRANSLATIONS: Record<string, string> = {
+  'Value is less than the minimum value of 1':
+    'Valor inválido: o campo requer um número maior que zero.',
+};
+
+/**
+ * Translate a raw Xano error message into a friendlier Portuguese string.
+ * Returns the original message if no translation matches.
+ */
+export function translateXanoError(message: string): string {
+  for (const [pattern, translation] of Object.entries(XANO_ERROR_TRANSLATIONS)) {
+    if (message.includes(pattern)) return translation;
+  }
+  return message;
+}
+
+/**
+ * Returns `true` when the error is a non-critical Xano validation failure
+ * that can be silently swallowed (e.g. listing tasks when no subjects exist).
+ */
+export function isNonCriticalValidationError(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  const msg = error.message.toLowerCase();
+  return msg.includes('minimum value') || msg.includes('less than the minimum');
+}
+
 let unauthorizedHandler: (() => void) | null = null;
 
 export function setUnauthorizedHandler(handler: (() => void) | null): void {
@@ -155,12 +184,13 @@ export async function apiRequest<T>(url: string, options: RequestOptions = {}): 
     if (response.status === 401 && token && notifyOnUnauthorized && unauthorizedHandler) {
       unauthorizedHandler();
     }
-    const message =
+    const rawMessage =
       parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string'
         ? parsed.message
         : typeof parsed === 'string' && parsed
           ? parsed
           : `Erro HTTP ${response.status}`;
+    const message = translateXanoError(rawMessage);
     throw new ApiError(message, response.status);
   }
 
@@ -271,6 +301,8 @@ export interface AcademicTaskInput {
   description?: string | null;
   due_date?: string | null;
   status?: string;
+  grade?: number | null;
+  weight?: number | null;
 }
 
 export async function fetchAcademicTasksApi(
@@ -298,6 +330,12 @@ export async function createAcademicTaskApi(
   if (input.due_date) {
     payload.due_date = input.due_date;
   }
+  if (input.grade !== undefined && input.grade !== null) {
+    payload.grade = Number(input.grade);
+  }
+  if (input.weight !== undefined && input.weight !== null) {
+    payload.weight = Number(input.weight);
+  }
   return apiRequest<AcademicTask>(url, { method: 'POST', body: payload, token });
 }
 
@@ -315,6 +353,8 @@ export async function updateAcademicTaskApi(
   }
   if (fields.due_date !== undefined) payload.due_date = fields.due_date || null;
   if (fields.status !== undefined) payload.status = fields.status;
+  if (fields.grade !== undefined) payload.grade = fields.grade !== null ? Number(fields.grade) : null;
+  if (fields.weight !== undefined) payload.weight = fields.weight !== null ? Number(fields.weight) : null;
   return apiRequest<AcademicTask>(url, { method: 'PATCH', body: payload, token });
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeProgressMetrics, normalizeTaskStatus, isTaskOverdue, formatDateBR } from './progress';
+import { computeProgressMetrics, computeGradeMetrics, getGradeBadgeTone, normalizeTaskStatus, isTaskOverdue, formatDateBR } from './progress';
 import type { AcademicTask } from '../types/models';
 
 describe('Progress calculation and status normalization', () => {
@@ -48,5 +48,37 @@ describe('Progress calculation and status normalization', () => {
     expect(
       isTaskOverdue({ id: 9, title: 'Late', status: 'pending', subject_id: 1, due_date: '2026-01-01' }, '2026-11-17')
     ).toBe(true);
+  });
+});
+
+
+describe('Grade metrics', () => {
+  it('returns zero metrics for tasks without grades', () => {
+    const tasks: AcademicTask[] = [
+      { id: 1, title: 'T1', status: 'completed', subject_id: 1 },
+      { id: 2, title: 'T2', status: 'pending', subject_id: 1 },
+    ];
+    const gm = computeGradeMetrics(tasks);
+    expect(gm.gradedTasks).toBe(0);
+    expect(gm.weightedAverage).toBe(0);
+  });
+
+  it('computes weighted average correctly', () => {
+    const tasks: AcademicTask[] = [
+      { id: 1, title: 'Prova', status: 'completed', subject_id: 1, grade: 8, weight: 3 },
+      { id: 2, title: 'Trabalho', status: 'completed', subject_id: 1, grade: 6, weight: 1 },
+      { id: 3, title: 'Pendente', status: 'pending', subject_id: 1, grade: null },
+    ];
+    const gm = computeGradeMetrics(tasks);
+    expect(gm.gradedTasks).toBe(2);
+    // (8*3 + 6*1) / (3+1) = 30/4 = 7.5
+    expect(gm.weightedAverage).toBe(7.5);
+    expect(gm.totalWeight).toBe(4);
+  });
+
+  it('assigns correct badge tones', () => {
+    expect(getGradeBadgeTone(8.5)).toBe('emerald');
+    expect(getGradeBadgeTone(6.0)).toBe('amber');
+    expect(getGradeBadgeTone(3.0)).toBe('rose');
   });
 });
